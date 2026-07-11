@@ -67,8 +67,8 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 let qt_ref = self.qttbl[qtid];
                 let dqf_bytes = &self.pool[qt_ref.offset..qt_ref.offset + qt_ref.len];
                 let mut dqf = [0i32; 64];
-                for i in 0..64 {
-                    dqf[i] = i32::from_ne_bytes([dqf_bytes[i*4], dqf_bytes[i*4+1], dqf_bytes[i*4+2], dqf_bytes[i*4+3]]);
+                for (dst, chunk) in dqf.iter_mut().zip(dqf_bytes.chunks_exact(4)) {
+                    *dst = i32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                 }
                 
                 let mut tmp = [0i32; 64];

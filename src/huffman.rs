@@ -59,14 +59,14 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             self.huffbits[num][cls] = crate::decoder::TableRef { offset: ofs_bits, len: 16 };
             let mut np = 0;
             let mut pb = [0u8; 16];
-            for i in 0..16 {
-                pb[i] = self.pool[data_idx + i];
-                np += pb[i] as usize;
+            for (i, val) in pb.iter_mut().enumerate() {
+                *val = self.pool[data_idx + i];
+                np += *val as usize;
             }
             data_idx += 16;
             
-            for i in 0..16 {
-                self.pool[ofs_bits + i] = pb[i];
+            for (i, &val) in pb.iter().enumerate() {
+                self.pool[ofs_bits + i] = val;
             }
 
             let ofs_code = self.alloc(np * 2)?;
@@ -75,8 +75,8 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             let mut hc = 0u16;
             let mut j = 0;
             let mut code_buf = [0u8; 512]; // Max np is 256 for JPEG
-            for i in 0..16 {
-                let mut b = pb[i];
+            for &b_val in &pb {
+                let mut b = b_val;
                 while b > 0 {
                     b -= 1;
                     let bytes = hc.to_ne_bytes();
@@ -88,8 +88,8 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 hc <<= 1;
             }
             
-            for i in 0..np * 2 {
-                self.pool[ofs_code + i] = code_buf[i];
+            for (i, &val) in code_buf.iter().enumerate().take(np * 2) {
+                self.pool[ofs_code + i] = val;
             }
 
             if end_idx - data_idx < np {
@@ -211,20 +211,23 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             }
             bm >>= 1;
 
-            let mut nd = self.pool[hb_idx];
+            let nd = self.pool[hb_idx] as usize;
             hb_idx += 1;
-            while nd > 0 {
-                let hc_val = u16::from_ne_bytes([self.pool[hc_idx], self.pool[hc_idx + 1]]);
+            
+            let hc_bytes = &self.pool[hc_idx .. hc_idx + nd * 2];
+            let hd_bytes = &self.pool[hd_idx .. hd_idx + nd];
+            
+            for (chunk, &data_val) in hc_bytes.chunks_exact(2).zip(hd_bytes.iter()) {
+                let hc_val = u16::from_ne_bytes([chunk[0], chunk[1]]);
                 if d == hc_val {
                     self.dbit = bm;
                     self.dctr = dc;
                     self.dptr = dp;
-                    return Ok(self.pool[hd_idx]);
+                    return Ok(data_val);
                 }
-                hc_idx += 2;
-                hd_idx += 1;
-                nd -= 1;
             }
+            hc_idx += nd * 2;
+            hd_idx += nd;
             bl -= 1;
             if bl == 0 {
                 break;

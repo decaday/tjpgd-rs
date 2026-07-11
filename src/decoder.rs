@@ -139,113 +139,129 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             let seg_len = (len - 2) as usize;
             ofs += 4 + seg_len;
 
-            // Load segment data into pool inbuf
-            if seg_len > self.inbuf_len {
-                return Err(JpegError::InsufficientStreamBuffer);
-            }
-            
-            // Read exactly seg_len bytes
-            let mut read_total = 0;
-            while read_total < seg_len {
-                let bytes_read = self.reader.read(&mut self.pool[pool_offset + read_total..pool_offset + seg_len]).unwrap_or(0);
-                if bytes_read == 0 {
-                    return Err(JpegError::InputError);
-                }
-                read_total += bytes_read;
-            }
-            match marker & 0xFF {
-                0xC0 => { // SOF0
-                    self.height = ((self.pool[pool_offset + 1] as u16) << 8) | (self.pool[pool_offset + 2] as u16);
-                    self.width = ((self.pool[pool_offset + 3] as u16) << 8) | (self.pool[pool_offset + 4] as u16);
-                    self.ncomp = self.pool[pool_offset + 5];
-                    if self.ncomp != 3 && self.ncomp != 1 {
-                        return Err(JpegError::UnsupportedJpegStandard);
-                    }
-                    for i in 0..self.ncomp as usize {
-                        let b = self.pool[pool_offset + 7 + 3 * i];
-                        if i == 0 {
-                            if b != 0x11 && b != 0x22 && b != 0x21 {
-                                return Err(JpegError::UnsupportedJpegStandard);
-                            }
-                            self.msx = b >> 4;
-                            self.msy = b & 15;
-                        } else {
-                            if b != 0x11 {
-                                return Err(JpegError::UnsupportedJpegStandard);
-                            }
-                        }
-                        self.qtid[i] = self.pool[pool_offset + 8 + 3 * i];
-                        if self.qtid[i] > 3 {
-                            return Err(JpegError::UnsupportedJpegStandard);
-                        }
-                    }
-                }
-                0xDD => { // DRI
-                    self.nrst = ((self.pool[pool_offset] as u16) << 8) | (self.pool[pool_offset + 1] as u16);
-                }
-                0xC4 => { // DHT
-                    self.create_huffman_tbl(pool_offset, seg_len)?;
-                }
-                0xDB => { // DQT
-                    self.create_qt_tbl(pool_offset, seg_len)?;
-                }
-                0xDA => { // SOS
-                    if self.width == 0 || self.height == 0 {
-                        return Err(JpegError::DataFormatError);
-                    }
-                    if self.pool[pool_offset] != self.ncomp {
-                        return Err(JpegError::UnsupportedJpegStandard);
-                    }
-                    for i in 0..self.ncomp as usize {
-                        let b = self.pool[pool_offset + 2 + 2 * i];
-                        if b != 0x00 && b != 0x11 {
-                            return Err(JpegError::UnsupportedJpegStandard);
-                        }
-                        let n = if i == 0 { 0 } else { 1 };
-                        if self.huffbits[n][0].len == 0 || self.huffbits[n][1].len == 0 {
-                            return Err(JpegError::DataFormatError);
-                        }
-                        if self.qttbl[self.qtid[i] as usize].len == 0 {
-                            return Err(JpegError::DataFormatError);
-                        }
-                    }
-
-                    // Allocate workbuf and mcubuf
-                    let n = (self.msy * self.msx) as usize;
-                    if n == 0 {
-                        return Err(JpegError::DataFormatError);
-                    }
-                    let mut work_len = n * 64 * 2 + 64;
-                    if work_len < 256 {
-                        work_len = 256;
-                    }
-                    let w_ofs = self.alloc(work_len)?;
-                    self.workbuf = TableRef { offset: w_ofs, len: work_len };
-
-                    let m_ofs = self.alloc((n + 2) * 64)?;
-                    self.mcubuf = TableRef { offset: m_ofs, len: (n + 2) * 64 };
-
-                    // Align stream read
-                    let rem = ofs % self.inbuf_len;
-                    if rem > 0 {
-                        let mut tmp = [0u8; 1];
-                        let to_read = self.inbuf_len - rem;
-                        for _ in 0..to_read {
-                            let _ = self.reader.read(&mut tmp);
-                        }
-                        self.dctr = 0;
-                    } else {
-                        self.dctr = 0;
-                    }
-                    self.dptr = self.inbuf_offset; // will be refilled
-
-                    return Ok(()); // SOS is the last header
-                }
+            let is_supported = match marker & 0xFF {
+                0xC0 | 0xDD | 0xC4 | 0xDB | 0xDA => true,
                 0xC1 | 0xC2 | 0xC3 | 0xC5 | 0xC6 | 0xC7 | 0xC9 | 0xCA | 0xCB | 0xCD | 0xCE | 0xCF | 0xD9 => {
                     return Err(JpegError::UnsupportedJpegStandard);
                 }
-                _ => {
-                    // skip unknown segment
+                _ => false,
+            };
+
+            if is_supported {
+                // Load segment data into pool inbuf
+                if seg_len > self.inbuf_len {
+                    return Err(JpegError::InsufficientStreamBuffer);
+                }
+                
+                // Read exactly seg_len bytes
+                let mut read_total = 0;
+                while read_total < seg_len {
+                    let bytes_read = self.reader.read(&mut self.pool[pool_offset + read_total..pool_offset + seg_len]).unwrap_or(0);
+                    if bytes_read == 0 {
+                        return Err(JpegError::InputError);
+                    }
+                    read_total += bytes_read;
+                }
+                match marker & 0xFF {
+                    0xC0 => { // SOF0
+                        self.height = ((self.pool[pool_offset + 1] as u16) << 8) | (self.pool[pool_offset + 2] as u16);
+                        self.width = ((self.pool[pool_offset + 3] as u16) << 8) | (self.pool[pool_offset + 4] as u16);
+                        self.ncomp = self.pool[pool_offset + 5];
+                        if self.ncomp != 3 && self.ncomp != 1 {
+                            return Err(JpegError::UnsupportedJpegStandard);
+                        }
+                        for i in 0..self.ncomp as usize {
+                            let b = self.pool[pool_offset + 7 + 3 * i];
+                            if i == 0 {
+                                if b != 0x11 && b != 0x22 && b != 0x21 {
+                                    return Err(JpegError::UnsupportedJpegStandard);
+                                }
+                                self.msx = b >> 4;
+                                self.msy = b & 15;
+                            } else {
+                                if b != 0x11 {
+                                    return Err(JpegError::UnsupportedJpegStandard);
+                                }
+                            }
+                            self.qtid[i] = self.pool[pool_offset + 8 + 3 * i];
+                            if self.qtid[i] > 3 {
+                                return Err(JpegError::UnsupportedJpegStandard);
+                            }
+                        }
+                    }
+                    0xDD => { // DRI
+                        self.nrst = ((self.pool[pool_offset] as u16) << 8) | (self.pool[pool_offset + 1] as u16);
+                    }
+                    0xC4 => { // DHT
+                        self.create_huffman_tbl(pool_offset, seg_len)?;
+                    }
+                    0xDB => { // DQT
+                        self.create_qt_tbl(pool_offset, seg_len)?;
+                    }
+                    0xDA => { // SOS
+                        if self.width == 0 || self.height == 0 {
+                            return Err(JpegError::DataFormatError);
+                        }
+                        if self.pool[pool_offset] != self.ncomp {
+                            return Err(JpegError::UnsupportedJpegStandard);
+                        }
+                        for i in 0..self.ncomp as usize {
+                            let b = self.pool[pool_offset + 2 + 2 * i];
+                            if b != 0x00 && b != 0x11 {
+                                return Err(JpegError::UnsupportedJpegStandard);
+                            }
+                            let n = if i == 0 { 0 } else { 1 };
+                            if self.huffbits[n][0].len == 0 || self.huffbits[n][1].len == 0 {
+                                return Err(JpegError::DataFormatError);
+                            }
+                            if self.qttbl[self.qtid[i] as usize].len == 0 {
+                                return Err(JpegError::DataFormatError);
+                            }
+                        }
+
+                        // Allocate workbuf and mcubuf
+                        let n = (self.msy * self.msx) as usize;
+                        if n == 0 {
+                            return Err(JpegError::DataFormatError);
+                        }
+                        let mut work_len = n * 64 * 2 + 64;
+                        if work_len < 256 {
+                            work_len = 256;
+                        }
+                        let w_ofs = self.alloc(work_len)?;
+                        self.workbuf = TableRef { offset: w_ofs, len: work_len };
+
+                        let m_ofs = self.alloc((n + 2) * 64)?;
+                        self.mcubuf = TableRef { offset: m_ofs, len: (n + 2) * 64 };
+
+                        // Align stream read
+                        let rem = ofs % self.inbuf_len;
+                        if rem > 0 {
+                            let mut tmp = [0u8; 1];
+                            let to_read = self.inbuf_len - rem;
+                            for _ in 0..to_read {
+                                let _ = self.reader.read(&mut tmp);
+                            }
+                            self.dctr = 0;
+                        } else {
+                            self.dctr = 0;
+                        }
+                        self.dptr = self.inbuf_offset; // will be refilled
+
+                        return Ok(()); // SOS is the last header
+                    }
+                    _ => unreachable!(),
+                }
+            } else {
+                // Skip unknown segment
+                let mut to_skip = seg_len;
+                while to_skip > 0 {
+                    let read_len = core::cmp::min(to_skip, self.inbuf_len);
+                    let bytes_read = self.reader.read(&mut self.pool[pool_offset..pool_offset + read_len]).unwrap_or(0);
+                    if bytes_read == 0 {
+                        return Err(JpegError::InputError);
+                    }
+                    to_skip -= bytes_read;
                 }
             }
         }

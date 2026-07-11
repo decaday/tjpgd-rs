@@ -1,3 +1,5 @@
+#![allow(clippy::erasing_op, clippy::identity_op, clippy::approx_constant)]
+
 /// Zigzag-order to raster-order conversion table
 pub const ZIG: [usize; 64] = [
     0,  1,  8, 16,  9,  2,  3, 10, 17, 24, 32, 25, 18, 11,  4,  5,
@@ -40,7 +42,7 @@ pub fn block_idct(src: &mut [i32; 64], dst: &mut [u8]) {
 
         let mut t10 = v0 + v2;
         let mut t12 = v0 - v2;
-        let mut t11 = (v1 - v3) * M13 >> 12;
+        let mut t11 = ((v1 - v3) * M13) >> 12;
         v3 += v1;
         t11 -= v3;
         v0 = t10 + v3;
@@ -57,11 +59,11 @@ pub fn block_idct(src: &mut [i32; 64], dst: &mut [u8]) {
         t11 = v5 + v4;
         t12 = v6 - v7;
         v7 += v6;
-        v5 = (t11 - v7) * M13 >> 12;
+        v5 = ((t11 - v7) * M13) >> 12;
         v7 += t11;
-        let t13 = (t10 + t12) * M5 >> 12;
-        v4 = t13 - (t10 * M2 >> 12);
-        v6 = t13 - (t12 * M4 >> 12) - v7;
+        let t13 = ((t10 + t12) * M5) >> 12;
+        v4 = t13 - ((t10 * M2) >> 12);
+        v6 = t13 - ((t12 * M4) >> 12) - v7;
         v5 -= v6;
         v4 -= v5;
 
@@ -85,7 +87,7 @@ pub fn block_idct(src: &mut [i32; 64], dst: &mut [u8]) {
 
         let mut t10 = v0 + v2;
         let mut t12 = v0 - v2;
-        let mut t11 = (v1 - v3) * M13 >> 12;
+        let mut t11 = ((v1 - v3) * M13) >> 12;
         v3 += v1;
         t11 -= v3;
         v0 = t10 + v3;
@@ -102,11 +104,11 @@ pub fn block_idct(src: &mut [i32; 64], dst: &mut [u8]) {
         t11 = v5 + v4;
         t12 = v6 - v7;
         v7 += v6;
-        v5 = (t11 - v7) * M13 >> 12;
+        v5 = ((t11 - v7) * M13) >> 12;
         v7 += t11;
-        let t13 = (t10 + t12) * M5 >> 12;
-        v4 = t13 - (t10 * M2 >> 12);
-        v6 = t13 - (t12 * M4 >> 12) - v7;
+        let t13 = ((t10 + t12) * M5) >> 12;
+        v4 = t13 - ((t10 * M2) >> 12);
+        v6 = t13 - ((t12 * M4) >> 12) - v7;
         v5 -= v6;
         v4 -= v5;
 
