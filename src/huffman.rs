@@ -2,7 +2,7 @@ use crate::decoder::JpegDecoder;
 use crate::error::JpegError;
 use crate::decoder::Read;
 
-impl<'a, R: Read> JpegDecoder<'a, R> {
+impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub(crate) fn create_qt_tbl(&mut self, pool_offset: usize, seg_len: usize) -> Result<(), JpegError> {
         let mut data_idx = pool_offset;
         let end_idx = pool_offset + seg_len;

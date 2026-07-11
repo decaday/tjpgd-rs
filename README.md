@@ -30,7 +30,7 @@ let mut read_fn = |buf: &mut [u8]| -> usize {
 let mut workspace = [0u8; 3500];
 
 // Initialize the decoder (parses headers)
-let mut decoder = JpegDecoder::new(&mut workspace, &mut read_fn).unwrap();
+let mut decoder = JpegDecoder::new(&mut workspace[..], &mut read_fn).unwrap();
 
 // Define a closure to process output MCU blocks
 let mut out_fn = |data: &[u8], rect: &tjpgd_rs::Rect| -> bool {
@@ -40,6 +40,29 @@ let mut out_fn = |data: &[u8], rect: &tjpgd_rs::Rect| -> bool {
 };
 
 // Start decoding
+decoder.decode(Scale::None, PixelFormat::RGB565, &mut out_fn).unwrap();
+```
+
+### Using the `alloc` Feature
+
+If you are on a system that supports a global allocator (e.g., you have the `alloc` crate), you can enable the `alloc` feature to avoid manually passing a workspace buffer:
+
+```toml
+[dependencies]
+tjpgd3-rs = { version = "0.1.0", features = ["alloc"] }
+```
+
+When enabled, you can use `JpegDecoder::new_alloc()`:
+
+```rust
+use tjpgd3_rs::{JpegDecoder, PixelFormat, Scale};
+
+// ... set up read_fn as above ...
+
+// The decoder will automatically allocate a sufficiently large Vec<u8> internally
+let mut decoder = JpegDecoder::new_alloc(&mut read_fn).unwrap();
+
+// Decode exactly as before
 decoder.decode(Scale::None, PixelFormat::RGB565, &mut out_fn).unwrap();
 ```
 

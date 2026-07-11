@@ -40,8 +40,8 @@ pub(crate) struct TableRef {
     pub(crate) len: usize,
 }
 
-pub struct JpegDecoder<'a, R: Read> {
-    pub(crate) pool: &'a mut [u8],
+pub struct JpegDecoder<R: Read, B: core::ops::DerefMut<Target = [u8]>> {
+    pub(crate) pool: B,
     pub(crate) pool_used: usize,
 
     pub(crate) reader: R,
@@ -72,8 +72,8 @@ pub struct JpegDecoder<'a, R: Read> {
     pub(crate) mcubuf: TableRef,
 }
 
-impl<'a, R: Read> JpegDecoder<'a, R> {
-    pub fn new(pool: &'a mut [u8], reader: R) -> Result<Self, JpegError> {
+impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
+    pub fn new(pool: B, reader: R) -> Result<Self, JpegError> {
         let mut jd = Self {
             pool,
             pool_used: 0,
@@ -298,5 +298,16 @@ impl<'a, R: Read> JpegDecoder<'a, R> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<R: Read> JpegDecoder<R, alloc::vec::Vec<u8>> {
+    /// Creates a new `JpegDecoder` by allocating an owned buffer internally.
+    /// This requires the `alloc` feature to be enabled.
+    pub fn new_alloc(reader: R) -> Result<Self, JpegError> {
+        // 3500 bytes is a safe default workspace size for TJpgDec
+        let pool = alloc::vec![0u8; 3500];
+        Self::new(pool, reader)
     }
 }

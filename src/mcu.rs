@@ -4,7 +4,7 @@ use crate::decoder::{Read, WriteRect};
 use crate::types::{PixelFormat, Rect, Scale};
 use crate::idct::{block_idct, ZIG, byteclip};
 
-impl<'a, R: Read> JpegDecoder<'a, R> {
+impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub(crate) fn restart(&mut self, rstn: u16) -> Result<(), JpegError> {
         let mut d = 0u16;
         let mut dc = self.dctr;
