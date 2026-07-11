@@ -1,0 +1,16 @@
+[package]
+name = "tjpgd3-rs"
+version = "0.1.0"
+edition = "2021"
+description = "A no_std compatible Rust translation of the TJpgDec (Tiny JPEG Decompressor) library."
+authors = ["ChaN <original author>", "Antigravity <translator>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/placeholder/tjpgd3-rs" # Placeholder
+categories = ["embedded", "multimedia::images", "no-std"]
+keywords = ["jpeg", "decoder", "embedded", "no_std"]
+
+[features]
+default = []
+alloc = [] # Enables convenient allocation of workspace buffer
+
+[dependencies]
