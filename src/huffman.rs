@@ -209,20 +209,23 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             let nd = self.pool[hb_idx] as usize;
             hb_idx += 1;
             
-            let hc_bytes = &self.pool[hc_idx .. hc_idx + nd * 2];
-            let hc_slice: &[u16] = bytemuck::cast_slice(hc_bytes);
-            let hd_bytes = &self.pool[hd_idx .. hd_idx + nd];
-            
-            for (&hc_val, &data_val) in hc_slice.iter().zip(hd_bytes.iter()) {
-                if d == hc_val {
-                    self.dbit = bm;
-                    self.dctr = dc;
-                    self.dptr = dp;
-                    return Ok(data_val);
+            if nd > 0 {
+                let mut p_hc = hc_idx;
+                let mut p_hd = hd_idx;
+                for _ in 0..nd {
+                    let hc_val = u16::from_ne_bytes([self.pool[p_hc], self.pool[p_hc + 1]]);
+                    if d == hc_val {
+                        self.dbit = bm;
+                        self.dctr = dc;
+                        self.dptr = dp;
+                        return Ok(self.pool[p_hd]);
+                    }
+                    p_hc += 2;
+                    p_hd += 1;
                 }
+                hc_idx += nd * 2;
+                hd_idx += nd;
             }
-            hc_idx += nd * 2;
-            hd_idx += nd;
             bl -= 1;
             if bl == 0 {
                 break;

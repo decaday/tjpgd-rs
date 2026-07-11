@@ -179,9 +179,9 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                         let yy = self.pool[py_idx] as i32;
                         py_idx += 1;
 
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1.402 * CVACC as f32) as i32 * cr) / CVACC); out_idx += 1;
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy - ((0.344 * CVACC as f32) as i32 * cb + (0.714 * CVACC as f32) as i32 * cr) / CVACC); out_idx += 1;
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1.772 * CVACC as f32) as i32 * cb) / CVACC); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1435 * cr) >> 10)); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy - ((352 * cb + 731 * cr) >> 10)); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1814 * cb) >> 10)); out_idx += 1;
                     }
                 }
             } else {
@@ -260,9 +260,9 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                     py_idx += 64;
 
                     if format != PixelFormat::Grayscale {
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1.402 * CVACC as f32) as i32 * cr) / CVACC); out_idx += 1;
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy - ((0.344 * CVACC as f32) as i32 * cb + (0.714 * CVACC as f32) as i32 * cr) / CVACC); out_idx += 1;
-                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1.772 * CVACC as f32) as i32 * cb) / CVACC); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1435 * cr) >> 10)); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy - ((352 * cb + 731 * cr) >> 10)); out_idx += 1;
+                        self.pool[workbuf_offset + out_idx] = byteclip(yy + ((1814 * cb) >> 10)); out_idx += 1;
                     } else {
                         self.pool[workbuf_offset + out_idx] = yy as u8; out_idx += 1;
                     }
