@@ -31,9 +31,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
 
             // Copy to pool
             let dst = &mut self.pool[ofs..ofs + 64 * 4];
-            for (idx, &val) in pb.iter().enumerate() {
-                dst[idx * 4..idx * 4 + 4].copy_from_slice(&val.to_ne_bytes());
-            }
+            bytemuck::cast_slice_mut::<u8, i32>(dst).copy_from_slice(&pb);
         }
         Ok(())
     }
@@ -74,23 +72,20 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             
             let mut hc = 0u16;
             let mut j = 0;
-            let mut code_buf = [0u8; 512]; // Max np is 256 for JPEG
+            let mut code_buf = [0u16; 256]; // Max np is 256 for JPEG
             for &b_val in &pb {
                 let mut b = b_val;
                 while b > 0 {
                     b -= 1;
-                    let bytes = hc.to_ne_bytes();
-                    code_buf[j * 2] = bytes[0];
-                    code_buf[j * 2 + 1] = bytes[1];
+                    code_buf[j] = hc;
                     j += 1;
                     hc += 1;
                 }
                 hc <<= 1;
             }
             
-            for (i, &val) in code_buf.iter().enumerate().take(np * 2) {
-                self.pool[ofs_code + i] = val;
-            }
+            let dst = &mut self.pool[ofs_code..ofs_code + np * 2];
+            bytemuck::cast_slice_mut::<u8, u16>(dst).copy_from_slice(&code_buf[..np]);
 
             if end_idx - data_idx < np {
                 return Err(JpegError::DataFormatError);
@@ -215,10 +210,10 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             hb_idx += 1;
             
             let hc_bytes = &self.pool[hc_idx .. hc_idx + nd * 2];
+            let hc_slice: &[u16] = bytemuck::cast_slice(hc_bytes);
             let hd_bytes = &self.pool[hd_idx .. hd_idx + nd];
             
-            for (chunk, &data_val) in hc_bytes.chunks_exact(2).zip(hd_bytes.iter()) {
-                let hc_val = u16::from_ne_bytes([chunk[0], chunk[1]]);
+            for (&hc_val, &data_val) in hc_slice.iter().zip(hd_bytes.iter()) {
                 if d == hc_val {
                     self.dbit = bm;
                     self.dctr = dc;

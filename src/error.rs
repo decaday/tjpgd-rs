@@ -38,3 +38,6 @@ impl fmt::Display for JpegError {
         }
     }
 }
+
+impl core::error::Error for JpegError {}
+

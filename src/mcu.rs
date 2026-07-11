@@ -67,9 +67,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 let qt_ref = self.qttbl[qtid];
                 let dqf_bytes = &self.pool[qt_ref.offset..qt_ref.offset + qt_ref.len];
                 let mut dqf = [0i32; 64];
-                for (dst, chunk) in dqf.iter_mut().zip(dqf_bytes.chunks_exact(4)) {
-                    *dst = i32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                }
+                dqf.copy_from_slice(bytemuck::cast_slice(dqf_bytes));
                 
                 let mut tmp = [0i32; 64];
                 tmp[0] = (d * dqf[0]) >> 8;
@@ -281,14 +279,13 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             let bytes_per_pixel = if format != PixelFormat::Grayscale { 3 } else { 1 };
             
             for _y in 0..ry {
-                for _x in 0..rx {
-                    self.pool[workbuf_offset + d_idx] = self.pool[workbuf_offset + s_idx]; d_idx += 1; s_idx += 1;
-                    if format != PixelFormat::Grayscale {
-                        self.pool[workbuf_offset + d_idx] = self.pool[workbuf_offset + s_idx]; d_idx += 1; s_idx += 1;
-                        self.pool[workbuf_offset + d_idx] = self.pool[workbuf_offset + s_idx]; d_idx += 1; s_idx += 1;
-                    }
-                }
-                s_idx += (mx_scaled - rx) as usize * bytes_per_pixel;
+                let row_len = rx as usize * bytes_per_pixel;
+                self.pool.copy_within(
+                    workbuf_offset + s_idx .. workbuf_offset + s_idx + row_len,
+                    workbuf_offset + d_idx
+                );
+                d_idx += row_len;
+                s_idx += mx_scaled as usize * bytes_per_pixel;
             }
         }
 

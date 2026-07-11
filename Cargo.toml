@@ -15,3 +15,4 @@ alloc = [] # Enables convenient allocation of workspace buffer
 
 [dependencies]
 embedded-io = { version = "0.7.1", default-features = false }
+bytemuck = { version = "1.16", default-features = false }

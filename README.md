@@ -2,7 +2,7 @@
 
 `tjpgd-rs` is a `#![no_std]` Rust translation of [TJpgDec (Tiny JPEG Decompressor) R0.03](https://elm-chan.org/fsw/tjpgd/00index.html) by ChaN. 
 
-It is designed for embedded systems with highly constrained memory. It features zero-allocation decoding, meaning it can run entirely using a pre-allocated byte slice (`&mut [u8]`) as its `workspace`, without requiring a heap allocator.
+It is designed for embedded systems with highly constrained memory. It features zero-allocation decoding, meaning it can run entirely using a pre-allocated byte slice (`&mut [u8]`) as its working memory buffer, without requiring a heap allocator.
 
 ## Features
 - **Zero Allocations**: Fully `#![no_std]` compatible, doesn't require the `alloc` crate.

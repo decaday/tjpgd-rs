@@ -58,9 +58,12 @@ pub struct JpegDecoder<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8
 
 impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub fn new(pool: B, reader: R) -> Result<Self, JpegError> {
+        let pool_ptr = pool.as_ptr() as usize;
+        let align_offset = (4 - (pool_ptr & 3)) & 3;
+
         let mut jd = Self {
             pool,
-            pool_used: 0,
+            pool_used: align_offset,
             reader,
             inbuf_offset: 0,
             inbuf_len: 512, // JD_SZBUF
