@@ -302,7 +302,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 let b = self.pool[workbuf_offset + s_idx]; s_idx += 1;
                 
                 let w = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
-                let w_bytes = w.to_ne_bytes();
+                let w_bytes = w.to_be_bytes();
                 self.pool[workbuf_offset + d_idx] = w_bytes[0]; d_idx += 1;
                 self.pool[workbuf_offset + d_idx] = w_bytes[1]; d_idx += 1;
             }
