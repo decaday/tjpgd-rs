@@ -127,7 +127,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             let marker = ((buf[0] as u16) << 8) | (buf[1] as u16);
-            
+
             // Read 2 bytes for length
             if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
@@ -234,7 +234,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                         let m_ofs = self.alloc((n + 2) * 64)?;
                         self.mcubuf = TableRef { offset: m_ofs, len: (n + 2) * 64 };
 
-                            self.dctr = 0;
+                        self.dctr = 0;
                         self.dptr = 0;
 
                         return Ok(()); // SOS is the last header
@@ -314,5 +314,38 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
         // 3500 bytes is a safe default workspace size for TJpgDec
         let pool = alloc::vec![0u8; 3500];
         JpegDecoder::new(pool, reader)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct DummyReader;
+    impl embedded_io::ErrorType for DummyReader {
+        type Error = embedded_io::ErrorKind;
+    }
+    impl embedded_io::Read for DummyReader {
+        fn read(&mut self, _buf: &mut [u8]) -> Result<usize, Self::Error> {
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn test_decoder_init_insufficient_pool() {
+        let mut reader = DummyReader;
+        let mut pool = [0u8; 128]; // Too small, needs >= 3100
+        let decoder = JpegDecoder::new(&mut pool[..], &mut reader);
+        assert!(matches!(decoder, Err(JpegError::InsufficientMemoryPool)));
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_decoder_new_alloc() {
+        // Because DummyReader immediately returns EOF, finding SOI marker fails.
+        // The memory allocation itself should succeed.
+        let reader = DummyReader;
+        let decoder = JpegDecoder::<DummyReader, &mut [u8]>::new_alloc(reader);
+        assert!(matches!(decoder, Err(JpegError::InputError)));
     }
 }
