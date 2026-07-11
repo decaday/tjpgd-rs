@@ -1,22 +1,6 @@
 use crate::error::JpegError;
 use crate::types::{PixelFormat, Rect, Scale};
-use crate::idct::{block_idct, ZIG, IPSF};
 
-/// Read function trait or closure equivalent.
-pub trait Read {
-    /// Reads up to `buf.len()` bytes into `buf`. 
-    /// Returns the number of bytes read. 0 indicates EOF or error.
-    fn read(&mut self, buf: &mut [u8]) -> usize;
-}
-
-impl<F> Read for F
-where
-    F: FnMut(&mut [u8]) -> usize,
-{
-    fn read(&mut self, buf: &mut [u8]) -> usize {
-        self(buf)
-    }
-}
 
 /// Output function trait or closure equivalent.
 pub trait WriteRect {
@@ -40,7 +24,7 @@ pub(crate) struct TableRef {
     pub(crate) len: usize,
 }
 
-pub struct JpegDecoder<R: Read, B: core::ops::DerefMut<Target = [u8]>> {
+pub struct JpegDecoder<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> {
     pub(crate) pool: B,
     pub(crate) pool_used: usize,
 
@@ -72,7 +56,7 @@ pub struct JpegDecoder<R: Read, B: core::ops::DerefMut<Target = [u8]>> {
     pub(crate) mcubuf: TableRef,
 }
 
-impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
+impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub fn new(pool: B, reader: R) -> Result<Self, JpegError> {
         let mut jd = Self {
             pool,
@@ -103,17 +87,19 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
         jd.inbuf_offset = jd.alloc(jd.inbuf_len)?;
 
         // Find SOI marker
-        let mut marker = 0u16;
-        let mut ofs = 0;
+        let mut buf = [0u8; 2];
+        let ofs = 0;
         loop {
-            let mut buf = [0u8; 1];
-            if jd.reader.read(&mut buf) != 1 {
+            if jd.reader.read(&mut buf[0..1]).map_err(|_| JpegError::InputError)? != 1 {
                 return Err(JpegError::InputError);
             }
-            ofs += 1;
-            marker = (marker << 8) | (buf[0] as u16);
-            if marker == 0xFFD8 {
-                break;
+            if buf[0] == 0xFF {
+                if jd.reader.read(&mut buf[1..2]).map_err(|_| JpegError::InputError)? != 1 {
+                    return Err(JpegError::InputError);
+                }
+                if buf[1] == 0xD8 {
+                    break;
+                }
             }
         }
 
@@ -139,12 +125,12 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
             let mut buf = [0u8; 4];
             let pool_offset = self.inbuf_offset;
             
-            if self.reader.read(&mut buf[0..1]) != 1 { return Err(JpegError::InputError); }
-            if self.reader.read(&mut buf[1..2]) != 1 { return Err(JpegError::InputError); }
+            if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
+            if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             let marker = ((buf[0] as u16) << 8) | (buf[1] as u16);
             
-            if self.reader.read(&mut buf[0..1]) != 1 { return Err(JpegError::InputError); }
-            if self.reader.read(&mut buf[1..2]) != 1 { return Err(JpegError::InputError); }
+            if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
+            if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             let len = ((buf[0] as u16) << 8) | (buf[1] as u16);
 
             if len <= 2 || (marker >> 8) != 0xFF {
@@ -161,7 +147,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
             // Read exactly seg_len bytes
             let mut read_total = 0;
             while read_total < seg_len {
-                let bytes_read = self.reader.read(&mut self.pool[pool_offset + read_total..pool_offset + seg_len]);
+                let bytes_read = self.reader.read(&mut self.pool[pool_offset + read_total..pool_offset + seg_len]).unwrap_or(0);
                 if bytes_read == 0 {
                     return Err(JpegError::InputError);
                 }
@@ -245,7 +231,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
                         let mut tmp = [0u8; 1];
                         let to_read = self.inbuf_len - rem;
                         for _ in 0..to_read {
-                            self.reader.read(&mut tmp);
+                            let _ = self.reader.read(&mut tmp);
                         }
                         self.dctr = 0;
                     } else {
@@ -302,7 +288,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
 }
 
 #[cfg(feature = "alloc")]
-impl<R: Read> JpegDecoder<R, alloc::vec::Vec<u8>> {
+impl<R: embedded_io::Read> JpegDecoder<R, alloc::vec::Vec<u8>> {
     /// Creates a new `JpegDecoder` by allocating an owned buffer internally.
     /// This requires the `alloc` feature to be enabled.
     pub fn new_alloc(reader: R) -> Result<Self, JpegError> {

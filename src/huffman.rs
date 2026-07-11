@@ -1,8 +1,7 @@
 use crate::decoder::JpegDecoder;
 use crate::error::JpegError;
-use crate::decoder::Read;
 
-impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
+impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub(crate) fn create_qt_tbl(&mut self, pool_offset: usize, seg_len: usize) -> Result<(), JpegError> {
         let mut data_idx = pool_offset;
         let end_idx = pool_offset + seg_len;
@@ -123,7 +122,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
                 if dc == 0 {
                     // Actually we should read directly into pool
                     let pool_offset = self.inbuf_offset;
-                    dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]);
+                    dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]).unwrap_or(0);
                     if dc == 0 {
                         return Err(JpegError::InputError);
                     }
@@ -183,7 +182,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
             if bm == 0 {
                 if dc == 0 {
                     let pool_offset = self.inbuf_offset;
-                    dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]);
+                    dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]).unwrap_or(0);
                     if dc == 0 {
                         return Err(JpegError::InputError);
                     }

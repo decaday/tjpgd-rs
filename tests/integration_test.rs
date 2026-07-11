@@ -1,18 +1,30 @@
-use tjpgd3_rs::{JpegDecoder, PixelFormat, Rect, Scale};
+use tjpgd_rs::{JpegDecoder, PixelFormat, Rect, Scale};
+
+struct MockReader<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> embedded_io::ErrorType for MockReader<'a> {
+    type Error = embedded_io::ErrorKind;
+}
+
+impl<'a> embedded_io::Read for MockReader<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let len = buf.len().min(self.data.len());
+        if len == 0 { return Ok(0); }
+        buf[..len].copy_from_slice(&self.data[..len]);
+        self.data = &self.data[len..];
+        Ok(len)
+    }
+}
 
 #[test]
 fn test_decoder_initialization_with_invalid_data() {
-    let mut data = [0u8; 128].as_slice();
-    let mut read_fn = |buf: &mut [u8]| -> usize {
-        let len = buf.len().min(data.len());
-        if len == 0 { return 0; }
-        buf[..len].copy_from_slice(&data[..len]);
-        data = &data[len..];
-        len
-    };
+    let data = [0u8; 128];
+    let mut reader = MockReader { data: &data };
 
     let mut workspace = [0u8; 3100];
-    let result = JpegDecoder::new(&mut workspace[..], &mut read_fn);
+    let result = JpegDecoder::new(&mut workspace[..], &mut reader);
     assert!(result.is_err(), "Decoder should fail on invalid JPEG data");
 }
 

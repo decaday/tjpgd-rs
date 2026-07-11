@@ -1,10 +1,10 @@
 use crate::decoder::JpegDecoder;
 use crate::error::JpegError;
-use crate::decoder::{Read, WriteRect};
+use crate::decoder::WriteRect;
 use crate::types::{PixelFormat, Rect, Scale};
 use crate::idct::{block_idct, ZIG, byteclip};
 
-impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
+impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     pub(crate) fn restart(&mut self, rstn: u16) -> Result<(), JpegError> {
         let mut d = 0u16;
         let mut dc = self.dctr;
@@ -13,7 +13,7 @@ impl<R: Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
         for _ in 0..2 {
             if dc == 0 {
                 let pool_offset = self.inbuf_offset;
-                dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]);
+                dc = self.reader.read(&mut self.pool[pool_offset..pool_offset + self.inbuf_len]).unwrap_or(0);
                 if dc == 0 {
                     return Err(JpegError::InputError);
                 }

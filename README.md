@@ -1,6 +1,6 @@
-# tjpgd3-rs
+# tjpgd-rs
 
-`tjpgd3-rs` is a `#![no_std]` Rust translation of [TJpgDec (Tiny JPEG Decompressor) R0.03](https://elm-chan.org/fsw/tjpgd/00index.html) by ChaN. 
+`tjpgd-rs` is a `#![no_std]` Rust translation of [TJpgDec (Tiny JPEG Decompressor) R0.03](https://elm-chan.org/fsw/tjpgd/00index.html) by ChaN. 
 
 It is designed for embedded systems with highly constrained memory. It features zero-allocation decoding, meaning it can run entirely using a pre-allocated byte slice (`&mut [u8]`) as its `workspace`, without requiring a heap allocator.
 
@@ -49,13 +49,13 @@ If you are on a system that supports a global allocator (e.g., you have the `all
 
 ```toml
 [dependencies]
-tjpgd3-rs = { version = "0.1.0", features = ["alloc"] }
+tjpgd-rs = { version = "0.1.0", features = ["alloc"] }
 ```
 
 When enabled, you can use `JpegDecoder::new_alloc()`:
 
 ```rust
-use tjpgd3_rs::{JpegDecoder, PixelFormat, Scale};
+use tjpgd_rs::{JpegDecoder, PixelFormat, Scale};
 
 // ... set up read_fn as above ...
 
