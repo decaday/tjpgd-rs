@@ -119,16 +119,16 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
         Ok(offset)
     }
 
-    fn parse_headers(&mut self, mut ofs: usize) -> Result<(), JpegError> {
+    fn parse_headers(&mut self, mut _ofs: usize) -> Result<(), JpegError> {
+        let mut buf = [0u8; 2];
         loop {
-            // Get a JPEG marker
-            let mut buf = [0u8; 4];
             let pool_offset = self.inbuf_offset;
-            
+            // Read 2 bytes for marker
             if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             let marker = ((buf[0] as u16) << 8) | (buf[1] as u16);
             
+            // Read 2 bytes for length
             if self.reader.read(&mut buf[0..1]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             if self.reader.read(&mut buf[1..2]).unwrap_or(0) != 1 { return Err(JpegError::InputError); }
             let len = ((buf[0] as u16) << 8) | (buf[1] as u16);
@@ -137,7 +137,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 return Err(JpegError::DataFormatError);
             }
             let seg_len = (len - 2) as usize;
-            ofs += 4 + seg_len;
+            _ofs += 4 + seg_len;
 
             let is_supported = match marker & 0xFF {
                 0xC0 | 0xDD | 0xC4 | 0xDB | 0xDA => true,
@@ -234,19 +234,8 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                         let m_ofs = self.alloc((n + 2) * 64)?;
                         self.mcubuf = TableRef { offset: m_ofs, len: (n + 2) * 64 };
 
-                        // Align stream read
-                        let rem = ofs % self.inbuf_len;
-                        if rem > 0 {
-                            let mut tmp = [0u8; 1];
-                            let to_read = self.inbuf_len - rem;
-                            for _ in 0..to_read {
-                                let _ = self.reader.read(&mut tmp);
-                            }
                             self.dctr = 0;
-                        } else {
-                            self.dctr = 0;
-                        }
-                        self.dptr = self.inbuf_offset; // will be refilled
+                        self.dptr = 0;
 
                         return Ok(()); // SOS is the last header
                     }
@@ -257,7 +246,13 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 let mut to_skip = seg_len;
                 while to_skip > 0 {
                     let read_len = core::cmp::min(to_skip, self.inbuf_len);
-                    let bytes_read = self.reader.read(&mut self.pool[pool_offset..pool_offset + read_len]).unwrap_or(0);
+                    let mut tmp = [0u8; 1];
+                    let mut bytes_read = 0;
+                    for _ in 0..read_len {
+                        let b = self.reader.read(&mut tmp).unwrap_or(0);
+                        if b == 0 { break; }
+                        bytes_read += b;
+                    }
                     if bytes_read == 0 {
                         return Err(JpegError::InputError);
                     }
@@ -265,6 +260,14 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
                 }
             }
         }
+    }
+
+    pub fn width(&self) -> u16 {
+        self.width
+    }
+
+    pub fn height(&self) -> u16 {
+        self.height
     }
 
     pub fn decode<W: WriteRect>(
@@ -304,12 +307,12 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
 }
 
 #[cfg(feature = "alloc")]
-impl<R: embedded_io::Read> JpegDecoder<R, alloc::vec::Vec<u8>> {
+impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R, B> {
     /// Creates a new `JpegDecoder` by allocating an owned buffer internally.
     /// This requires the `alloc` feature to be enabled.
-    pub fn new_alloc(reader: R) -> Result<Self, JpegError> {
+    pub fn new_alloc(reader: R) -> Result<JpegDecoder<R, alloc::vec::Vec<u8>>, JpegError> {
         // 3500 bytes is a safe default workspace size for TJpgDec
         let pool = alloc::vec![0u8; 3500];
-        Self::new(pool, reader)
+        JpegDecoder::new(pool, reader)
     }
 }
