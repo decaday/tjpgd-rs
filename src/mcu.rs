@@ -141,7 +141,7 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
             bottom: (y >> shift) + ry - 1,
         };
 
-        const CVACC: i32 = 1024;
+        // const CVACC: i32 = 1024;
         let mx_scaled = mx >> shift;
 
         let workbuf_offset = self.workbuf.offset;

@@ -307,6 +307,62 @@ impl<R: embedded_io::Read, B: core::ops::DerefMut<Target = [u8]>> JpegDecoder<R,
 
         Ok(())
     }
+
+    pub fn decode_to_framebuffer(
+        &mut self,
+        fb: &mut [u8],
+        fb_width: u16,
+        fb_height: u16,
+        offset_x: i32,
+        offset_y: i32,
+        format: PixelFormat,
+        scale: Scale,
+    ) -> Result<(), JpegError> {
+        let bytes_per_pixel = match format {
+            PixelFormat::RGB888 => 3,
+            PixelFormat::RGB565 => 2,
+            PixelFormat::Grayscale => 1,
+        };
+
+        let mut write_rect = |data: &[u8], rect: &Rect| -> bool {
+            let block_w = (rect.right - rect.left + 1) as usize;
+
+            for y in rect.top..=rect.bottom {
+                let abs_y = y as i32 + offset_y;
+                if abs_y < 0 || abs_y >= fb_height as i32 {
+                    continue;
+                }
+
+                let block_y = (y - rect.top) as usize;
+                let row_start_idx = block_y * block_w * bytes_per_pixel;
+
+                let start_x = rect.left as i32 + offset_x;
+                let end_x = rect.right as i32 + offset_x;
+
+                let (clip_start_x, data_skip) = if start_x < 0 {
+                    (0, (-start_x) as usize)
+                } else {
+                    (start_x, 0)
+                };
+
+                let clip_end_x = core::cmp::min(end_x, fb_width as i32 - 1);
+
+                if clip_start_x > clip_end_x { continue; }
+
+                let visible_w = (clip_end_x - clip_start_x + 1) as usize;
+                let row_bytes = visible_w * bytes_per_pixel;
+
+                let fb_idx = (abs_y as usize * fb_width as usize + clip_start_x as usize) * bytes_per_pixel;
+                let data_idx = row_start_idx + data_skip * bytes_per_pixel;
+
+                fb[fb_idx..fb_idx + row_bytes]
+                    .copy_from_slice(&data[data_idx..data_idx + row_bytes]);
+            }
+            true
+        };
+
+        self.decode(scale, format, &mut write_rect)
+    }
 }
 
 #[cfg(feature = "alloc")]
