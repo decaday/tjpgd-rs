@@ -13,6 +13,19 @@ It is designed for embedded systems with highly constrained memory. It features 
 
 ## Usage
 
+### Preparing Images
+
+`tjpgd-rs` supports only **Baseline JPEG** format. Progressive JPEGs are not supported. 
+
+You can easily convert any image to the optimal format using `ffmpeg`:
+
+```bash
+# Simplest command to convert an image to Baseline JPEG (yuv420p)
+ffmpeg -i input.png -pix_fmt yuv420p output.jpg
+```
+
+### Usage of the crate
+
 `JpegDecoder` reads input through `embedded_io::Read`. Add `embedded-io` as a direct dependency when implementing a reader:
 
 ```toml
